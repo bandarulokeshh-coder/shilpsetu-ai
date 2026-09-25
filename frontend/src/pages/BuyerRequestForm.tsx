@@ -2,9 +2,8 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
-import Loading from '../components/Loading';
-import { buyerRequestsApi, BuyerRequestCreate } from '../lib/api';
-import { Upload, X, Calendar, Tag, Clock, Image as ImageIcon, Mic, Send, ChevronLeft } from 'lucide-react';
+import { buyerRequestsApi } from '../lib/api';
+import { X, Calendar, Tag, Image as ImageIcon, Mic, Send, ChevronLeft, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function BuyerRequestForm() {
@@ -101,17 +100,15 @@ export default function BuyerRequestForm() {
     setLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
-      if (category) formData.append('category', category);
-      if (deadline) formData.append('deadline', deadline);
-      if (maxBudget) formData.append('maxBudget', maxBudget);
-      if (quantity) formData.append('quantity', quantity);
-
-      attachments.forEach(attachment => formData.append('attachments', attachment));
-
-      await buyerRequestsApi.create(formData as unknown as BuyerRequestCreate);
+      await buyerRequestsApi.create({
+        title,
+        description,
+        category: category || undefined,
+        deadline: deadline || undefined,
+        maxBudget: maxBudget ? Number(maxBudget) : undefined,
+        quantity: quantity ? Number(quantity) : undefined,
+        attachments,
+      });
       toast.success(t('buyerRequests.created', 'Request created successfully'));
       navigate('/buyer/requests');
     } catch (err) {
@@ -317,7 +314,7 @@ export default function BuyerRequestForm() {
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             {loading ? (
-              <Loading className="w-5 h-5" />
+              <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
                 <Send className="h-5 w-5" />

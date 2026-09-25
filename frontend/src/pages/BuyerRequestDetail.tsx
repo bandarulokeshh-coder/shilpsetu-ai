@@ -5,7 +5,8 @@ import Layout from '../components/Layout';
 import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
 import { buyerRequestsApi, quotesApi, conversationsApi, BuyerRequest, Quote, Conversation } from '../lib/api';
-import { ChevronLeft, Calendar, MapPin, Tag, Clock, MessageCircle, Send, Upload, Image as ImageIcon } from 'lucide-react';
+import { useAuthStore } from '../lib/store';
+import { ChevronLeft, Calendar, MapPin, Tag, Clock, MessageCircle, Send, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistance } from 'date-fns';
 
@@ -13,6 +14,7 @@ export default function BuyerRequestDetail() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   const [request, setRequest] = useState<BuyerRequest | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -48,13 +50,19 @@ export default function BuyerRequestDetail() {
     if (!message.trim()) return;
 
     try {
-      const formData = new FormData();
-      formData.append('buyerRequestId', id!);
-      formData.append('receiverId', request!.buyerId);
-      formData.append('message', message);
-      if (attachment) formData.append('attachments', attachment);
+      // When the buyer views their own request, message the matched artisan if there is one;
+      // artisans always reply to the buyer.
+      const receiverId =
+        request!.buyerId === user?.id && request!.matchedArtisan
+          ? request!.matchedArtisan.id
+          : request!.buyerId;
 
-      await conversationsApi.create(formData);
+      await conversationsApi.create({
+        buyerRequestId: id!,
+        receiverId,
+        message,
+        attachments: attachment ? [attachment] : undefined,
+      });
       setMessage('');
       setAttachment(null);
       loadRequest();

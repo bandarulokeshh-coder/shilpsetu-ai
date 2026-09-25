@@ -5,7 +5,7 @@ import Layout from '../components/Layout';
 import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
 import { buyerRequestsApi, BuyerRequest } from '../lib/api';
-import { Plus, Calendar, MapPin, Tag, Clock, MessageCircle, ChevronRight, Filter } from 'lucide-react';
+import { Plus, Calendar, MapPin, Tag, MessageCircle, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistance } from 'date-fns';
 

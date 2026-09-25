@@ -122,6 +122,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const quote = await prisma.quote.create({
       data: {
         buyerRequestId,
+        buyerId: request.buyerId,
         artisanId,
         amount,
         message: message || '',

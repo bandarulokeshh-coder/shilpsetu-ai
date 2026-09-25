@@ -438,6 +438,20 @@ export const aiApi = {
     }>('/api/ai/calculate-pricing', data),
 };
 
+export interface BuyerRequestCreate {
+  title: string;
+  description: string;
+  hindiDescription?: string;
+  englishDescription?: string;
+  craftType?: string;
+  category?: string;
+  material?: string;
+  quantity?: number;
+  maxBudget?: number;
+  deadline?: string;
+  attachments?: File[];
+}
+
 // Buyer Requests API
 export const buyerRequestsApi = {
   getAll: () => api.get<BuyerRequest[]>('/api/buyer-requests'),
@@ -447,19 +461,7 @@ export const buyerRequestsApi = {
   /** Buyer's own requests. */
   getMine: () => api.get<BuyerRequest[]>('/api/buyer-requests/mine'),
 
-  create: (data: {
-    title: string;
-    description: string;
-    hindiDescription?: string;
-    englishDescription?: string;
-    craftType?: string;
-    category?: string;
-    material?: string;
-    quantity: number;
-    maxBudget?: number;
-    deadline?: string;
-    attachments?: File[];
-  }) => {
+  create: (data: BuyerRequestCreate) => {
     const formData = new FormData();
     formData.append('title', data.title);
     formData.append('description', data.description);
@@ -468,8 +470,8 @@ export const buyerRequestsApi = {
     if (data.craftType) formData.append('craftType', data.craftType);
     if (data.category) formData.append('category', data.category);
     if (data.material) formData.append('material', data.material);
-    formData.append('quantity', data.quantity.toString());
-    if (data.maxBudget) formData.append('maxBudget', data.maxBudget.toString());
+    if (data.quantity != null) formData.append('quantity', String(data.quantity));
+    if (data.maxBudget != null) formData.append('maxBudget', String(data.maxBudget));
     if (data.deadline) formData.append('deadline', data.deadline);
     data.attachments?.forEach((file) => formData.append('attachments', file));
 
@@ -479,7 +481,7 @@ export const buyerRequestsApi = {
   },
 
   updateStatus: (id: string, status: BuyerRequest['status']) =>
-    api.patch<BuyerRequest>(`/api/buyer-requests/${id}/status`, { status }),
+    api.put<BuyerRequest>(`/api/buyer-requests/${id}/status`, { status }),
 
   matchArtisan: (id: string) => api.post<BuyerRequest>(`/api/buyer-requests/${id}/match`, {}),
 
@@ -494,7 +496,17 @@ export const buyerRequestsApi = {
 export const quotesApi = {
   getAll: () => api.get<Quote[]>('/api/quotes'),
 
-  getByRequest: (requestId: string) => api.get<Quote[]>(`/api/quotes/request/${requestId}`),
+  getByRequest: (requestId: string) =>
+    api
+      .get<{ quotes: any[] }>(`/api/quotes/request/${requestId}`)
+      .then((res) => ({
+        ...res,
+        data: (res.data.quotes ?? []).map((quote) => ({
+          ...quote,
+          description: quote.description ?? quote.message ?? '',
+          deadline: quote.deadline ?? quote.expiryDate,
+        })) as Quote[],
+      })),
 
   create: (data: {
     buyerRequestId: string;
@@ -514,7 +526,10 @@ export const quotesApi = {
 export const conversationsApi = {
   getAll: () => api.get<Conversation[]>('/api/conversations'),
 
-  getByRequest: (requestId: string) => api.get<Conversation[]>(`/api/conversations/request/${requestId}`),
+  getByRequest: (requestId: string) =>
+    api
+      .get<{ messages: Conversation[] }>(`/api/conversations/request/${requestId}`)
+      .then((res) => ({ ...res, data: res.data.messages ?? [] })),
 
   getWithUser: (requestId: string, otherUserId: string) =>
     api.get<Conversation[]>(`/api/conversations/request/${requestId}/users/${otherUserId}`),

@@ -1,20 +1,71 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { v4 as uuidv4 } from 'uuid';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Setup multer for chat attachments (images)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadDir = path.join(__dirname, '../../uploads');
+
+const storage = multer.diskStorage({
+  destination: uploadDir,
+  filename: (req, file, cb) => {
+    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (extname || mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image attachments are allowed'));
+    }
+  },
+});
+
+/** Shape a Conversation row for the frontend (attachments array + `read` alias). */
+const toClientMessage = (message: any) => ({
+  ...message,
+  attachments: parseJsonArray(message.attachments),
+  read: message.isRead,
+});
+
+function parseJsonArray(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 // Start a new conversation message
-router.post('/', authenticate, async (req: AuthRequest, res) => {
+router.post('/', authenticate, upload.array('attachments', 4), async (req: AuthRequest, res) => {
   try {
     const { buyerRequestId, receiverId, message, language } = req.body;
     const senderId = req.user!.id;
 
+    if (!buyerRequestId || !receiverId || !message) {
+      return res.status(400).json({ error: 'buyerRequestId, receiverId and message are required' });
+    }
+
     // Verify buyerRequest exists and sender is involved
     const request = await prisma.buyerRequest.findUnique({
       where: { id: buyerRequestId },
-      include: { buyerId: true, assignedArtisanId: true },
     });
 
     if (!request) {
@@ -26,14 +77,19 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       return res.status(403).json({ error: 'Not authorized to message this request' });
     }
 
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    const attachments = files.map((file) => `/uploads/${file.filename}`);
+
     // Create conversation message
     const conversation = await prisma.conversation.create({
       data: {
         buyerRequestId,
+        buyerId: request.buyerId,
         senderId,
         receiverId,
         message,
         language,
+        attachments: JSON.stringify(attachments),
         isTranslated: false,
       },
       include: {
@@ -48,7 +104,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       data: { status: 'CONVERSING' },
     });
 
-    res.status(201).json(conversation);
+    res.status(201).json(toClientMessage(conversation));
   } catch (error) {
     console.error('Create conversation message error:', error);
     res.status(500).json({ error: 'Failed to send message' });
@@ -64,7 +120,6 @@ router.get('/request/:requestId', authenticate, async (req: AuthRequest, res) =>
     // Verify user has access to this request
     const request = await prisma.buyerRequest.findUnique({
       where: { id: requestId },
-      include: { buyerId: true, assignedArtisanId: true },
     });
 
     if (!request) {
@@ -84,7 +139,7 @@ router.get('/request/:requestId', authenticate, async (req: AuthRequest, res) =>
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json({ messages });
+    res.json({ messages: messages.map(toClientMessage) });
   } catch (error) {
     console.error('Get conversation error:', error);
     res.status(500).json({ error: 'Failed to get conversation' });
@@ -121,7 +176,7 @@ router.get('/request/:requestId/users/:otherUserId', authenticate, async (req: A
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json({ messages });
+    res.json({ messages: messages.map(toClientMessage) });
   } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ error: 'Failed to get messages' });

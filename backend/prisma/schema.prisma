@@ -19,6 +19,7 @@ model User {
   craftType           String?
   bio                 String?
   avatar              String?
+  rating              Float?
   isApproved          Boolean       @default(true)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -166,7 +167,14 @@ model BuyerRequest {
   buyerId             String
   buyer               User          @relation("BuyerRequestBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
+  title               String        @default("")
   description         String
+  category            String?
+  material            String?
+  quantity            Int           @default(1)
+  maxBudget           Float?
+  deadline            DateTime?
+  attachments         String?
   type                String        @default("text")
   inputMediaUrl       String?
 
@@ -258,6 +266,7 @@ model Conversation {
   receiver            User          @relation("ConversationReceiver", fields: [receiverId], references: [id])
 
   message             String
+  attachments         String?
   isTranslated        Boolean       @default(false)
   translatedMessage   String?
   language            String?

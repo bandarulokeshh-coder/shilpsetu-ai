@@ -939,11 +939,11 @@ export function findArtisanMatchesService(
   artisans: Array<{
     id: string;
     name: string;
-    avatar?: string;
-    location?: string;
-    craftType?: string;
-    rating?: number;
-    bio?: string;
+    avatar?: string | null;
+    location?: string | null;
+    craftType?: string | null;
+    rating?: number | null;
+    bio?: string | null;
   }>
 ): ArtisanMatchResult[] {
   const matches: ArtisanMatchResult[] = [];
@@ -1011,7 +1011,7 @@ export function findArtisanMatchesService(
     if (score > 0) {
       // Sort match details by importance
       matchDetails.sort((a, b) => {
-        const importance = { 'Location match': 1, 'Craft match': 2, 'Product match': 3, 'Material match': 4, 'Rating': 5 };
+        const importance: Record<string, number> = { 'Location match': 1, 'Craft match': 2, 'Product match': 3, 'Material match': 4, 'Rating': 5 };
         return (importance[a.split(':')[0]] || 99) - (importance[b.split(':')[0]] || 99);
       });
 
@@ -1022,10 +1022,10 @@ export function findArtisanMatchesService(
       matches.push({
         artisanId: artisan.id,
         artisanName: artisan.name,
-        artisanAvatar: artisan.avatar,
-        artisanLocation: artisan.location,
-        artisanCraftType: artisan.craftType,
-        artisanRating: artisan.rating,
+        artisanAvatar: artisan.avatar ?? undefined,
+        artisanLocation: artisan.location ?? undefined,
+        artisanCraftType: artisan.craftType ?? undefined,
+        artisanRating: artisan.rating ?? undefined,
         matchScore: score,
         reason,
         matchDetails,

@@ -6,6 +6,7 @@ import {
   calculatePricingService,
   transcribeService,
 } from '../lib/aiService.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = express.Router();
 
@@ -100,9 +101,21 @@ router.post('/extract-requirements', authenticate, async (req: AuthRequest, res)
 // Find suitable artisans based on requirements
 router.post('/match-artisan', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { requirements, location, craftType, language = 'en' } = req.body;
+    const { requirements = {}, location, craftType } = req.body;
     const { findArtisanMatchesService } = await import('../lib/aiService.js');
-    const result = findArtisanMatchesService(requirements, location, craftType, language);
+
+    const artisans = await prisma.user.findMany({
+      where: { role: 'ARTISAN' },
+      select: { id: true, name: true, avatar: true, location: true, craftType: true, rating: true, bio: true },
+    });
+
+    const mergedRequirements = {
+      ...requirements,
+      ...(location ? { location } : {}),
+      ...(craftType ? { craftType } : {}),
+    };
+
+    const result = findArtisanMatchesService(mergedRequirements, artisans);
     res.json(result);
   } catch (error) {
     console.error('Artisan matching error:', error);
