@@ -23,27 +23,40 @@ model User {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  products            Product[]
-  enquiries           Enquiry[]
-  orders              Order[]
+  products            Product[] @relation("ProductArtisan")
+  enquiries           Enquiry[] @relation("EnquiryBuyer")
+  orders              Order[] @relation("OrderBuyer")
+
+  // Address book
+  addresses           Address[] @relation("UserAddresses")
+
+  // Pickup locations (for artisans)
+  pickupLocations     PickupLocation[] @relation("PickupLocationShipments")
+
+  // Shipments (as buyer, artisan, or sender)
+  shipmentBuyer       Shipment[] @relation("ShipmentBuyer")
+  shipmentArtisan     Shipment[] @relation("ShipmentArtisan")
+
+  // Returns (as buyer)
+  returns             Return[] @relation("ReturnBuyer")
 
   // AI Buyer Request -> Direct Artisan Matching
-  buyerRequests       BuyerRequest[]
-  buyerRequestArtisan ArtisanMatch[]
-  buyerQuotes         Quote[]
-  buyerConversations  Conversation[]
+  buyerRequests       BuyerRequest[] @relation("BuyerRequestBuyer")
+  buyerRequestArtisan BuyerRequest[] @relation("BuyerRequestArtisan")
+  buyerQuotes         Quote[] @relation("QuoteBuyer")
+  buyerConversations  Conversation[] @relation("ConversationBuyer")
+  buyerMatches        ArtisanMatch[] @relation("ArtisanMatchBuyer")
 
-  assignedRequests    BuyerRequest[]
-  artisanMatches      ArtisanMatch[]
-  artisanQuotes       Quote[]
-  conversationSender  Conversation[]
-  conversationReceiver Conversation[]
+  artisanMatches      ArtisanMatch[] @relation("ArtisanMatchArtisan")
+  artisanQuotes       Quote[] @relation("QuoteArtisan")
+  conversationSender  Conversation[] @relation("ConversationSender")
+  conversationReceiver Conversation[] @relation("ConversationReceiver")
 }
 
 model Product {
   id                  String        @id @default(uuid())
   artisanId           String
-  artisan             User          @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  artisan             User          @relation("ProductArtisan", fields: [artisanId], references: [id], onDelete: Cascade)
 
   title               String
   description         String
@@ -72,8 +85,8 @@ model Product {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  enquiries           Enquiry[]
-  orderItems          OrderItem[]
+  enquiries           Enquiry[] @relation("EnquiryProduct")
+  orderItems          OrderItem[] @relation("OrderItemProduct")
 
   @@index([artisanId])
   @@index([status])
@@ -83,9 +96,9 @@ model Product {
 model Enquiry {
   id         String        @id @default(uuid())
   productId  String
-  product    Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product       @relation("EnquiryProduct", fields: [productId], references: [id], onDelete: Cascade)
   buyerId    String
-  buyer      User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer      User          @relation("EnquiryBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   quantity   Int           @default(1)
   message    String
@@ -101,19 +114,21 @@ model Enquiry {
 model Order {
   id              String      @id @default(uuid())
   buyerId         String
-  buyer           User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  buyer           User        @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
-  status          String      @default("PENDING") // PENDING | CONFIRMED | SHIPPED | DELIVERED | CANCELLED
+  status          String      @default("PENDING")
   totalAmount     Float
 
-  // Shipping address snapshot (kept on the order so later profile edits don't rewrite history)
   shippingName    String
   shippingPhone   String
   shippingAddress String
   shippingCity    String
   shippingPincode String
 
-  items           OrderItem[]
+  items           OrderItem[] @relation("OrderItems")
+
+  returns         Return[] @relation("OrderReturn")
+  shipments       Shipment[] @relation("OrderShipments")
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -125,12 +140,11 @@ model Order {
 model OrderItem {
   id          String  @id @default(uuid())
   orderId     String
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order   @relation("OrderItems", fields: [orderId], references: [id], onDelete: Cascade)
 
   productId   String
-  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product     Product @relation("OrderItemProduct", fields: [productId], references: [id], onDelete: Cascade)
 
-  // Denormalized snapshot so order history survives product edits/deletion
   artisanId   String
   artisanName String
   title       String
@@ -144,7 +158,7 @@ model OrderItem {
 }
 
 // ==========================================
-// AI Buyer Request → Direct Artisan Matching
+// AI Buyer Request - Direct Artisan Matching
 // ==========================================
 
 model BuyerRequest {
@@ -152,27 +166,20 @@ model BuyerRequest {
   buyerId             String
   buyer               User          @relation("BuyerRequestBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
-  // Raw input
-  description         String        // Natural language description
-  type                String        @default("text") // text | voice | image
+  description         String
+  type                String        @default("text")
   inputMediaUrl       String?
 
-  // AI extracted structured data (as JSON string for SQLite compatibility)
-  extractedRequirements String      // JSON string with structured requirements
+  extractedRequirements String
 
-  // Matching & status
-  status              String        @default("PENDING") // PENDING | MATCHED | QUOTE_RECEIVED | ORDER_CREATED | CLOSED
+  status              String        @default("PENDING")
   assignedArtisanId   String?
   assignedArtisan     User?         @relation("BuyerRequestArtisan", fields: [assignedArtisanId], references: [id])
 
-  // Auto-generated matches
-  artisanMatches      ArtisanMatch[]
+  artisanMatches      ArtisanMatch[] @relation("ArtisanMatchBuyerRequest")
+  quotes              Quote[] @relation("QuoteBuyerRequest")
 
-  // Quotes from artisans
-  quotes              Quote[]
-
-  // Conversation thread
-  conversations       Conversation[]
+  conversations       Conversation[] @relation("ConversationBuyerRequest")
 
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
@@ -185,21 +192,23 @@ model BuyerRequest {
 model ArtisanMatch {
   id                  String        @id @default(uuid())
   buyerRequestId      String
-  buyerRequest        BuyerRequest  @relation(fields: [buyerRequestId], references: [id], onDelete: Cascade)
+  buyerRequest        BuyerRequest  @relation("ArtisanMatchBuyerRequest", fields: [buyerRequestId], references: [id], onDelete: Cascade)
+
+  buyerId             String
+  buyer               User          @relation("ArtisanMatchBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   artisanId           String
-  artisan             User          @relation(fields: [artisanId], references: [id])
+  artisan             User          @relation("ArtisanMatchArtisan", fields: [artisanId], references: [id])
 
-  // Matching score (0-100)
   matchScore          Int
-  matchReason         String?       // Why this artisan was matched
+  matchReason         String?
 
-  // Status
-  status              String        @default("SUGGESTED") // SUGGESTED | ACCEPTED | REJECTED
+  status              String        @default("SUGGESTED")
 
   createdAt           DateTime      @default(now())
 
   @@index([buyerRequestId])
+  @@index([buyerId])
   @@index([artisanId])
   @@index([status])
 }
@@ -207,29 +216,29 @@ model ArtisanMatch {
 model Quote {
   id                  String        @id @default(uuid())
   buyerRequestId      String
-  buyerRequest        BuyerRequest  @relation(fields: [buyerRequestId], references: [id], onDelete: Cascade)
+  buyerRequest        BuyerRequest  @relation("QuoteBuyerRequest", fields: [buyerRequestId], references: [id], onDelete: Cascade)
+
+  buyerId             String
+  buyer               User          @relation("QuoteBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   artisanId           String
-  artisan             User          @relation(fields: [artisanId], references: [id])
+  artisan             User          @relation("QuoteArtisan", fields: [artisanId], references: [id])
 
-  // Quote details
   amount              Float
   currency            String        @default("INR")
-  status              String        @default("PENDING") // PENDING | ACCEPTED | REJECTED | EXPIRED
+  status              String        @default("PENDING")
   expiryDate          DateTime
 
-  // Message from artisan
   message             String?
 
-  // Negotiation history
-  negotiationHistory  Json?
+  negotiationHistory  String?
 
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  // One quote per artisan per buyer request
   @@unique([buyerRequestId, artisanId])
   @@index([buyerRequestId])
+  @@index([buyerId])
   @@index([artisanId])
   @@index([status])
 }
@@ -237,18 +246,21 @@ model Quote {
 model Conversation {
   id                  String        @id @default(uuid())
   buyerRequestId      String
-  buyerRequest        BuyerRequest  @relation(fields: [buyerRequestId], references: [id], onDelete: Cascade)
+  buyerRequest        BuyerRequest  @relation("ConversationBuyerRequest", fields: [buyerRequestId], references: [id], onDelete: Cascade)
+
+  buyerId             String
+  buyer               User          @relation("ConversationBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
 
   senderId            String
-  sender              User          @relation(fields: [senderId], references: [id])
+  sender              User          @relation("ConversationSender", fields: [senderId], references: [id])
 
   receiverId          String
-  receiver            User          @relation(fields: [receiverId], references: [id])
+  receiver            User          @relation("ConversationReceiver", fields: [receiverId], references: [id])
 
   message             String
   isTranslated        Boolean       @default(false)
   translatedMessage   String?
-  language            String?       // Target language for translation
+  language            String?
 
   isRead              Boolean       @default(false)
   readAt              DateTime?
@@ -256,6 +268,167 @@ model Conversation {
   createdAt           DateTime      @default(now())
 
   @@index([buyerRequestId])
+  @@index([buyerId])
   @@index([senderId])
   @@index([receiverId])
+}
+
+// ==========================================
+// Logistics & Delivery System
+// ==========================================
+
+model Address {
+  id           String  @id @default(uuid())
+  userId       String
+  user         User? @relation("UserAddresses", fields: [userId], references: [id])
+
+  name         String?
+  type         String  @default("shipping")
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  pincode      String
+  country      String  @default("India")
+  phone        String
+  landmark     String?
+  isDefault    Boolean @default(false)
+
+  coordinates String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shipments   Shipment[] @relation("AddressShipments")
+
+  @@index([userId])
+  @@index([type])
+  @@index([isDefault])
+}
+
+model PickupLocation {
+  id           String  @id @default(uuid())
+  artisanId    String
+  artisan      User    @relation("PickupLocationShipments", fields: [artisanId], references: [id], onDelete: Cascade)
+
+  name         String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  pincode      String
+  country      String @default("India")
+  phone        String
+  landmark     String?
+  isDefault    Boolean @default(false)
+
+  coordinates String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shipments Shipment[] @relation("PickupLocationShipments")
+
+  @@index([artisanId])
+  @@index([isDefault])
+}
+
+model Shipment {
+  id                      String  @id @default(uuid())
+  orderId                 String
+  order                   Order   @relation("OrderShipments", fields: [orderId], references: [id])
+
+  buyerId                 String
+  buyer                   User    @relation("ShipmentBuyer", fields: [buyerId], references: [id])
+
+  artisanId               String
+  artisan                 User    @relation("ShipmentArtisan", fields: [artisanId], references: [id])
+
+  pickupLocationId        String?
+  pickupLocation          PickupLocation? @relation("PickupLocationShipments", fields: [pickupLocationId], references: [id], onDelete: SetNull)
+
+  status                  String  @default("ORDER_PLACED")
+
+  trackingId              String?
+  courierName             String?
+  shippingCost            Float   @default(0)
+  weightKg                Float?
+  dimensions              String?
+  packageCount            Int?
+  scheduledPickupDate     DateTime?
+  actualPickupDate        DateTime?
+  estimatedDeliveryDate   DateTime?
+  actualDeliveryDate      DateTime?
+
+  deliveryAddressSnapshot String
+
+  proofOfDelivery         String?
+
+  notes                   String?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  events                  ShipmentEvent[] @relation("ShipmentEvents")
+  returns                 Return[] @relation("ShipmentReturns")
+
+  returnShipmentId        String?
+  returnShipment          Shipment? @relation("ShipmentSelfReturn", fields: [returnShipmentId], references: [id], onDelete: SetNull)
+  returnShipmentments     Shipment[] @relation("ShipmentSelfReturn")
+  returnShipments         Return[] @relation("ReturnReturnShipment")
+
+  addressId               String?
+  address                 Address? @relation("AddressShipments", fields: [addressId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([buyerId])
+  @@index([artisanId])
+  @@index([status])
+  @@index([trackingId])
+}
+
+model ShipmentEvent {
+  id          String   @id @default(uuid())
+  shipmentId  String
+  shipment    Shipment @relation("ShipmentEvents", fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  eventId     String?
+  eventType   String
+  status      String
+  location    String?
+  description String
+  timestamp   DateTime
+
+  createdAt   DateTime @default(now())
+
+  @@index([shipmentId])
+  @@index([eventType])
+  @@index([timestamp])
+}
+
+model Return {
+  id              String   @id @default(uuid())
+  shipmentId      String
+  shipment        Shipment @relation("ShipmentReturns", fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderId         String
+  order           Order    @relation("OrderReturn", fields: [orderId], references: [id], onDelete: Cascade)
+  buyerId         String
+  buyer           User     @relation("ReturnBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  reason          String
+  description     String?
+  status          String   @default("REQUESTED")
+  refundAmount    Float    @default(0)
+  refundProcessedAt DateTime?
+
+  returnShipmentId String?
+  returnShipment   Shipment? @relation("ReturnReturnShipment", fields: [returnShipmentId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([shipmentId])
+  @@index([orderId])
+  @@index([buyerId])
+  @@index([status])
 }

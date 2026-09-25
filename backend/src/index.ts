@@ -13,6 +13,7 @@ import orderRoutes from './routes/orders.js';
 import buyerRequestRoutes from './routes/buyer-requests.js';
 import quoteRoutes from './routes/quotes.js';
 import conversationRoutes from './routes/conversations.js';
+import logisticsRoutes from './routes/logistics.js';
 
 dotenv.config();
 
@@ -71,6 +72,25 @@ app.get('/api', (req, res) => {
       buyerRequests: ['GET /api/buyer-requests', 'POST /api/buyer-requests', 'GET /api/buyer-requests/:id', 'POST /api/buyer-requests/:id/match'],
       quotes: ['GET /api/quotes', 'POST /api/quotes', 'GET /api/quotes/:id', 'PATCH /api/quotes/:id/status'],
       conversations: ['GET /api/conversations', 'POST /api/conversations', 'GET /api/conversations/:id/messages', 'POST /api/conversations/:id/messages'],
+      logistics: [
+        // Pickup Locations
+        'GET /api/logistics/pickup-locations',
+        'POST /api/logistics/pickup-locations',
+        'PUT /api/logistics/pickup-locations/:id',
+        'DELETE /api/logistics/pickup-locations/:id',
+        // Shipments
+        'GET /api/logistics/shipments',
+        'GET /api/logistics/shipments/:id',
+        'POST /api/logistics/shipments',
+        'PATCH /api/logistics/shipments/:id/status',
+        'GET /api/logistics/shipments/:id/events',
+        // Returns
+        'GET /api/logistics/returns',
+        'POST /api/logistics/returns',
+        'PATCH /api/logistics/returns/:id/status',
+        // Return Shipments
+        'GET /api/logistics/return-shipments',
+      ],
     },
   });
 });
@@ -86,6 +106,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/buyer-requests', buyerRequestRoutes);
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/logistics', logisticsRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
