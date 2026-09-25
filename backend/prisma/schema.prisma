@@ -61,6 +61,8 @@ model User {
   // Reviews
   reviewsGiven        Review[] @relation("ReviewBuyer")
   reviewsReceived     Review[] @relation("ReviewArtisan")
+
+  notifications       Notification[] @relation("UserNotifications")
 }
 
 model Product {
@@ -106,6 +108,23 @@ model Product {
 }
 
 // Buyer reviews of a product (and the artisan who made it)
+// In-app notifications for buyers and artisans
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
 model Review {
   id         String   @id @default(uuid())
   productId  String

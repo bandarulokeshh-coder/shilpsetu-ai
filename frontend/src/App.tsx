@@ -24,6 +24,8 @@ import OrdersPage from './pages/OrdersPage';
 import BuyerRequests from './pages/BuyerRequestList';
 import CreateBuyerRequest from './pages/BuyerRequestForm';
 import BuyerRequestDetail from './pages/BuyerRequestDetail';
+import NotFound from './pages/NotFound';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const { isAuthenticated, user, setAuth, logout } = useAuthStore();
@@ -45,7 +47,8 @@ function App() {
   }, [isAuthenticated, user, setAuth, logout]);
 
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       {/* Public routes */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/welcome" element={<WelcomePage />} />
@@ -125,8 +128,9 @@ function App() {
       />
 
       {/* 404 */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+      <Route path="*" element={<NotFound />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

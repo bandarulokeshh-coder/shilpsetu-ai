@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
+import { notify } from '../lib/notifications.js';
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -256,6 +257,17 @@ router.patch('/shipments/:id/status', authenticate, async (req: AuthRequest, res
       where: { id: req.params.id },
       data: { status, updatedAt: new Date() },
     });
+
+    // Let the buyer know, unless they are the one who moved the shipment
+    if (shipment.buyerId !== req.user!.id) {
+      await notify({
+        userId: shipment.buyerId,
+        type: 'SHIPMENT_UPDATE',
+        title: 'Shipment update',
+        body: `Your shipment is now ${String(status).replace(/_/g, ' ').toLowerCase()}`,
+        link: '/orders',
+      });
+    }
 
     res.json(updated);
   } catch (error) {

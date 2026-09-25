@@ -6,7 +6,8 @@ import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
 import { productsApi, enquiriesApi, usersApi, buyerRequestsApi, Product, Enquiry, User, DemandForecast } from '../lib/api';
 import { formatCurrency, getImageUrl } from '../lib/utils';
-import { Plus, Package, MessageSquare, DollarSign, Eye, Edit, Trash2, Share2, TrendingUp } from 'lucide-react';
+import { Plus, Package, MessageSquare, DollarSign, Eye, Edit, Trash2, Share2, TrendingUp, ClipboardCheck } from 'lucide-react';
+import { evaluateCatalogQuality } from '../lib/catalogQuality';
 import toast from 'react-hot-toast';
 
 export default function ArtisanDashboard() {
@@ -114,6 +115,20 @@ export default function ArtisanDashboard() {
   const publishedCount = products.filter((p) => p.status === 'APPROVED').length;
   const draftCount = products.length - publishedCount;
 
+  // Catalogue health: how complete the listings are for buyers browsing the market
+  const qualityResults = products.map((product) => ({
+    product,
+    result: evaluateCatalogQuality(product),
+  }));
+  const averageQuality = qualityResults.length
+    ? Math.round(
+        qualityResults.reduce((sum, entry) => sum + entry.result.score, 0) / qualityResults.length
+      )
+    : 0;
+  const weakestListing = [...qualityResults].sort(
+    (a, b) => a.result.score - b.result.score
+  )[0];
+
   if (loading) {
     return (
       <Layout>
@@ -130,6 +145,75 @@ export default function ArtisanDashboard() {
           <h1 className="text-3xl font-bold mb-2">{t('dashboard.title', 'Artisan Dashboard')}</h1>
           <p className="text-gray-600">{t('dashboard.welcome', { name: profile?.name })}</p>
         </div>
+
+        {/* Catalogue health — complete listings get seen far more often */}
+        {products.length > 0 && (
+          <div className="card mb-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <ClipboardCheck className="h-6 w-6 text-primary-600" />
+                <div>
+                  <h2 className="font-bold">
+                    {t('dashboard.catalogueHealth', 'Catalogue health')}
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    {t('dashboard.catalogueHealthSubtitle', 'Complete listings get more buyer enquiries')}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p
+                  className={`text-3xl font-bold ${
+                    averageQuality >= 80
+                      ? 'text-green-600'
+                      : averageQuality >= 50
+                      ? 'text-amber-600'
+                      : 'text-red-600'
+                  }`}
+                >
+                  {averageQuality}%
+                </p>
+                <p className="text-xs text-gray-500">
+                  {t('dashboard.averageAcross', 'Average across {{count}} listings', {
+                    count: products.length,
+                  })}
+                </p>
+              </div>
+            </div>
+
+            <div className="h-2 rounded-full bg-gray-200 overflow-hidden mt-3">
+              <div
+                className={`h-full rounded-full ${
+                  averageQuality >= 80
+                    ? 'bg-green-500'
+                    : averageQuality >= 50
+                    ? 'bg-amber-500'
+                    : 'bg-red-500'
+                }`}
+                style={{ width: `${averageQuality}%` }}
+              />
+            </div>
+
+            {weakestListing && weakestListing.result.nextActions.length > 0 && (
+              <div className="mt-3 text-sm flex flex-wrap items-center gap-2">
+                <span className="text-gray-600">
+                  {t('dashboard.needsAttention', 'Needs the most work')}:
+                </span>
+                <span className="font-medium">{weakestListing.product.title}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  {weakestListing.result.nextActions.length}{' '}
+                  {t('dashboard.fieldsMissing', 'fields missing')}
+                </span>
+                <Link
+                  to="/create-product"
+                  className="text-primary-600 hover:underline text-sm font-medium"
+                >
+                  {t('dashboard.improveListings', 'Improve listings')}
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Demand forecast — what buyers are asking for right now */}
         {forecast && (

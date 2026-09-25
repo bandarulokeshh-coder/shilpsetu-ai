@@ -15,6 +15,7 @@ import quoteRoutes from './routes/quotes.js';
 import conversationRoutes from './routes/conversations.js';
 import logisticsRoutes from './routes/logistics.js';
 import reviewRoutes from './routes/reviews.js';
+import notificationRoutes from './routes/notifications.js';
 
 dotenv.config();
 
@@ -109,6 +110,7 @@ app.use('/api/quotes', quoteRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/logistics', logisticsRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

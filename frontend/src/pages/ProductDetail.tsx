@@ -10,7 +10,7 @@ import { useAuthStore } from '../lib/store';
 import { useCartStore } from '../lib/cart';
 import { getImageUrl, formatCurrency, PLACEHOLDER_IMAGE } from '../lib/utils';
 import { PRODUCT_STATUS } from '../lib/constants';
-import { MapPin, User, Tag, Package, MessageSquare, ShoppingCart, Star, ShieldCheck } from 'lucide-react';
+import { MapPin, User, Tag, Package, MessageSquare, ShoppingCart, Star, ShieldCheck, MessageCircle } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 
@@ -143,6 +143,13 @@ export default function ProductDetail() {
     if (!product) return;
     addItem(product, 1);
     toast.success(t('productDetail.addedToCart'));
+  };
+
+  // WhatsApp is how most artisans and buyers actually share links.
+  const shareOnWhatsApp = () => {
+    if (!product) return;
+    const message = `${product.title} — ${formatCurrency(product.suggestedPrice || 0)}\n${window.location.origin}/product/${product.id}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
   };
 
   if (loading) {
@@ -339,6 +346,14 @@ export default function ProductDetail() {
                 {t('productDetail.addToCart')}
               </button>
             )}
+
+            <button
+              onClick={shareOnWhatsApp}
+              className="w-full mt-2 px-4 py-2 rounded-lg border border-green-200 bg-green-50 text-green-800 font-medium flex items-center justify-center gap-2 hover:bg-green-100"
+            >
+              <MessageCircle className="h-5 w-5" />
+              {t('productDetail.shareWhatsapp', 'Share on WhatsApp')}
+            </button>
 
             {user?.role === 'BUYER' && (
               <div className="space-y-3">

@@ -4,6 +4,7 @@ import { useAuthStore } from '../lib/store';
 import { LogOut, Menu, X, Globe, ShoppingCart, Wand2, UserPlus } from 'lucide-react';
 import { useState } from 'react';
 import LanguageSwitcher from './LanguageSwitcher';
+import NotificationBell from './NotificationBell';
 import { useCartStore, cartCount } from '../lib/cart';
 
 export default function Navbar() {
@@ -31,6 +32,7 @@ export default function Navbar() {
             <Link to="/marketplace" className="text-gray-700 hover:text-primary-600 font-medium">
               {t('nav.marketplace')}
             </Link>
+            <NotificationBell />
             {!isHomePage && (
               <Link
                 to="/cart"

@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../lib/prisma.js';
+import { notify } from '../lib/notifications.js';
 import { authenticate, AuthRequest, requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -107,6 +108,22 @@ router.post('/', authenticate, requireRole('BUYER'), async (req: AuthRequest, re
         },
       },
     });
+
+    // Tell the artisan that a buyer is interested in their product
+    const productOwner = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { artisanId: true, title: true },
+    });
+
+    if (productOwner) {
+      await notify({
+        userId: productOwner.artisanId,
+        type: 'ENQUIRY_RECEIVED',
+        title: 'New enquiry received',
+        body: `A buyer enquired about "${productOwner.title}"`,
+        link: '/enquiries',
+      });
+    }
 
     res.status(201).json(enquiry);
   } catch (error) {

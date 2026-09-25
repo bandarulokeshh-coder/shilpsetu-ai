@@ -7,6 +7,7 @@ import { ordersApi, Order } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { getImageUrl, formatCurrency, formatDate } from '../lib/utils';
 import { ClipboardList, XCircle } from 'lucide-react';
+import ShipmentEvents from '../components/ShipmentEvents';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
@@ -168,6 +169,8 @@ export default function OrdersPage() {
                   ) : (
                     <TrackingStepper order={order} />
                   )}
+
+                  <ShipmentEvents orderId={order.id} />
 
                   {/* Items */}
                   <ul className="divide-y mt-3">

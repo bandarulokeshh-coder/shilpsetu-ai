@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+import { notify } from '../lib/notifications.js';
 
 // Get quotes for the current user (as artisan)
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -137,6 +138,14 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       },
     });
 
+    await notify({
+      userId: request.buyerId,
+      type: 'QUOTE_RECEIVED',
+      title: 'New quote on your request',
+      body: `A quote of ₹${amount} was submitted for "${request.title}"`,
+      link: `/buyer/requests/${request.id}`,
+    });
+
     res.status(201).json(quote);
   } catch (error) {
     console.error('Create quote error:', error);
@@ -202,6 +211,14 @@ router.patch('/:id/accept', authenticate, async (req: AuthRequest, res) => {
         status: 'PENDING',
       },
       data: { status: 'REJECTED' },
+    });
+
+    await notify({
+      userId: quote.artisanId,
+      type: 'QUOTE_ACCEPTED',
+      title: 'Your quote was accepted',
+      body: `The buyer accepted your quote of ₹${quote.amount}`,
+      link: '/dashboard',
     });
 
     res.json(acceptedQuote);

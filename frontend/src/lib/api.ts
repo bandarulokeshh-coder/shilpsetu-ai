@@ -409,6 +409,55 @@ export interface Conversation {
   };
 }
 
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body?: string | null;
+  link?: string | null;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface ShipmentEvent {
+  id: string;
+  shipmentId: string;
+  eventType?: string | null;
+  status?: string | null;
+  description?: string | null;
+  location?: string | null;
+  timestamp: string;
+}
+
+export interface Shipment {
+  id: string;
+  orderId?: string;
+  buyerId: string;
+  artisanId: string;
+  trackingNumber?: string | null;
+  courierName?: string | null;
+  status: string;
+  expectedDelivery?: string | null;
+  deliveredAt?: string | null;
+  createdAt: string;
+  order?: { id: string; orderNumber?: string | null } | null;
+  events?: ShipmentEvent[];
+}
+
+// Notifications API
+export const notificationsApi = {
+  getAll: () => api.get<{ notifications: Notification[]; unreadCount: number }>('/api/notifications'),
+  markRead: (id: string) => api.patch<{ success: boolean }>(`/api/notifications/${id}/read`),
+  markAllRead: () => api.patch<{ success: boolean; updated: number }>('/api/notifications/read-all'),
+};
+
+// Logistics API
+export const logisticsApi = {
+  getShipments: () => api.get<Shipment[]>('/api/logistics/shipments'),
+  getEvents: (shipmentId: string) => api.get<ShipmentEvent[]>(`/api/logistics/shipments/${shipmentId}/events`),
+};
+
 export interface Review {
   id: string;
   productId: string;

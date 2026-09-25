@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { notify } from '../lib/notifications.js';
 
 const router = express.Router();
 
@@ -110,6 +111,14 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     await prisma.user.update({
       where: { id: product.artisanId },
       data: { rating: aggregate._avg.rating ?? null },
+    });
+
+    await notify({
+      userId: product.artisanId,
+      type: 'REVIEW_RECEIVED',
+      title: 'New review received',
+      body: `A buyer rated "${product.title}" ${stars} star${stars > 1 ? 's' : ''}`,
+      link: `/artisan/${product.artisanId}`,
     });
 
     res.status(201).json(review);
