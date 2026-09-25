@@ -150,6 +150,38 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
   }
 });
 
+// Public demand board — open buyer requests are visible to everyone (no auth).
+// Contact details (email/phone) are deliberately excluded from the public payload.
+router.get('/public', async (req, res) => {
+  try {
+    const { search, category, limit = 30 } = req.query;
+
+    const where: any = { status: { not: 'CLOSED' } };
+    if (category) where.category = category;
+    if (search) {
+      where.OR = [
+        { title: { contains: search as string } },
+        { description: { contains: search as string } },
+      ];
+    }
+
+    const requests = await prisma.buyerRequest.findMany({
+      where,
+      take: Number(limit),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        buyer: { select: { id: true, name: true, location: true, avatar: true } },
+        assignedArtisan: { select: { id: true, name: true, craftType: true, location: true, avatar: true } },
+      },
+    });
+
+    res.json(requests.map(toClientRequest));
+  } catch (error) {
+    console.error('Get public buyer requests error:', error);
+    res.status(500).json({ error: 'Failed to load buyer requests' });
+  }
+});
+
 // Get a specific buyer request
 router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   try {

@@ -295,7 +295,7 @@ export interface BuyerRequest {
   maxBudget?: number;
   deadline?: string;
   attachments?: string[];
-  status: 'PENDING' | 'MATCHED' | 'QUOTED' | 'CLOSED';
+  status: 'PENDING' | 'MATCHED' | 'QUOTE_RECEIVED' | 'ORDER_CREATED' | 'CONVERSING' | 'CLOSED';
   matchStatus?: 'SEARCHING' | 'SHORTLISTED' | 'NO_MATCH' | 'CONFIRMED';
   matchedArtisanId?: string;
   matchedArtisanScore?: number;
@@ -307,6 +307,8 @@ export interface BuyerRequest {
     name: string;
     email: string;
     phone?: string;
+    location?: string;
+    avatar?: string;
   };
   matchedArtisan?: {
     id: string;
@@ -459,6 +461,10 @@ export const buyerRequestsApi = {
     api
       .get<{ requests: BuyerRequest[]; total: number; limit: number; offset: number }>('/api/buyer-requests')
       .then((res) => ({ ...res, data: res.data?.requests ?? [] })),
+
+  /** Public demand board: open buyer requests shown to everyone on the marketplace. */
+  getPublic: (params?: { search?: string; category?: string }) =>
+    api.get<BuyerRequest[]>('/api/buyer-requests/public', { params }),
 
   getById: (id: string) => api.get<BuyerRequest>(`/api/buyer-requests/${id}`),
 

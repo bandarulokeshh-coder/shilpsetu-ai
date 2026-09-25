@@ -45,6 +45,7 @@ export default function BuyerRequestList() {
       case 'MATCHED':
         return 'bg-blue-100 text-blue-800';
       case 'QUOTED':
+      case 'QUOTE_RECEIVED':
         return 'bg-purple-100 text-purple-800';
       case 'CLOSED':
         return 'bg-green-100 text-green-800';
