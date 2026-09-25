@@ -49,6 +49,10 @@ export interface User {
   bio?: string;
   avatar?: string;
   createdAt: string;
+  isApproved?: boolean;
+  rating?: number | null;
+  verifiedAt?: string | null;
+  reviewsCount?: number;
   stats?: {
     productCount: number;
     enquiryCount: number;
@@ -231,6 +235,10 @@ export const enquiriesApi = {
 export const usersApi = {
   getMe: () => api.get<User>('/api/users/me'),
 
+  /** Artisan identity verification (only the last 4 ID digits are stored). */
+  submitVerification: (data: { idType: string; idNumber: string }) =>
+    api.post<{ user: User }>('/api/users/me/verification', data),
+
   updateMe: (data: Partial<User>) => api.put<User>('/api/users/me', data),
 
   changePassword: (currentPassword: string, newPassword: string) =>
@@ -401,6 +409,44 @@ export interface Conversation {
   };
 }
 
+export interface Review {
+  id: string;
+  productId: string;
+  buyerId: string;
+  artisanId: string;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+  buyer?: { id: string; name: string; avatar?: string };
+  product?: { id: string; title: string; imageUrl?: string | null };
+}
+
+export interface ReviewSummary {
+  reviews: Review[];
+  total: number;
+  averageRating: number | null;
+}
+
+// Reviews API
+export const reviewsApi = {
+  forProduct: (productId: string) => api.get<ReviewSummary>(`/api/reviews/products/${productId}`),
+  forArtisan: (artisanId: string) => api.get<ReviewSummary>(`/api/reviews/artisans/${artisanId}`),
+  create: (data: { productId: string; rating: number; comment?: string }) =>
+    api.post<Review>('/api/reviews', data),
+};
+
+export interface ExtractedRequirements {
+  productType?: string;
+  material?: string;
+  quantity?: number;
+  budget?: number;
+  location?: string;
+  craftType?: string;
+  deadline?: string;
+  languagePreference?: string;
+  additionalNotes?: string;
+}
+
 // AI API
 export const aiApi = {
   enhanceImage: (imageUrl: string) =>
@@ -460,6 +506,10 @@ export const aiApi = {
       explanation: string;
       note: string;
     }>('/api/ai/calculate-pricing', data),
+
+  /** Turn a spoken/plain-English requirement into structured fields. */
+  extractRequirements: (description: string, language = 'en') =>
+    api.post<ExtractedRequirements>('/api/ai/extract-requirements', { description, language }),
 };
 
 export interface BuyerRequestCreate {

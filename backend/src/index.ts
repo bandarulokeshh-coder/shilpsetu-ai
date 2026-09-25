@@ -14,6 +14,7 @@ import buyerRequestRoutes from './routes/buyer-requests.js';
 import quoteRoutes from './routes/quotes.js';
 import conversationRoutes from './routes/conversations.js';
 import logisticsRoutes from './routes/logistics.js';
+import reviewRoutes from './routes/reviews.js';
 
 dotenv.config();
 
@@ -107,6 +108,7 @@ app.use('/api/buyer-requests', buyerRequestRoutes);
 app.use('/api/quotes', quoteRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/logistics', logisticsRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Error handling
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

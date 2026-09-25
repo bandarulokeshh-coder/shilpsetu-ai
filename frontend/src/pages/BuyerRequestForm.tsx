@@ -2,9 +2,11 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
-import { buyerRequestsApi } from '../lib/api';
+import { buyerRequestsApi, aiApi } from '../lib/api';
 import { X, Calendar, Tag, Image as ImageIcon, Mic, Send, ChevronLeft, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const CATEGORY_CHOICES = ['Ceramics', 'Textiles', 'Woodwork', 'Metalwork', 'Jewelry', 'Painting'];
 
 export default function BuyerRequestForm() {
   const { t } = useTranslation();
@@ -19,12 +21,16 @@ export default function BuyerRequestForm() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -88,6 +94,77 @@ export default function BuyerRequestForm() {
     }
   };
 
+  // Voice-first input: the browser's Web Speech API transcribes locally (works offline,
+  // no API key), then the AI service turns that sentence into structured form fields.
+  const applySpokenRequirement = async (text: string) => {
+    setDescription(text);
+    if (!title.trim()) {
+      setTitle(text.split(/\s+/).slice(0, 6).join(' ').replace(/[,.]$/, ''));
+    }
+
+    try {
+      const found = (await aiApi.extractRequirements(text)).data;
+
+      if (found.quantity) setQuantity(String(found.quantity));
+      if (found.budget) setMaxBudget(String(found.budget));
+      if (found.craftType) {
+        const wanted = found.craftType.toLowerCase();
+        const match = CATEGORY_CHOICES.find(
+          (choice) =>
+            choice.toLowerCase().includes(wanted) || wanted.includes(choice.toLowerCase().slice(0, 4))
+        );
+        if (match) setCategory(match);
+      }
+
+      toast.success(t('buyerRequests.voiceFilled', 'Filled from your voice — please check the details'));
+    } catch {
+      toast.success(t('buyerRequests.voiceCaptured', 'Captured — please check the details'));
+    }
+  };
+
+  const handleVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error(t('buyerRequests.voiceUnsupported', 'Voice input needs Chrome or Edge — please type instead'));
+      return;
+    }
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setListening(true);
+    recognition.onerror = () => {
+      setListening(false);
+      toast.error(t('buyerRequests.voiceFailed', 'Could not hear that — please try again'));
+    };
+    recognition.onend = () => {
+      setListening(false);
+      const spoken = transcriptRef.current.trim();
+      if (spoken) applySpokenRequirement(spoken);
+    };
+    recognition.onresult = (event: any) => {
+      const text = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('');
+      transcriptRef.current = text;
+      setTranscript(text);
+    };
+
+    recognitionRef.current = recognition;
+    transcriptRef.current = '';
+    setTranscript('');
+    recognition.start();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -132,6 +209,35 @@ export default function BuyerRequestForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Voice-first: speak the requirement instead of typing it */}
+          <div className="card border-2 border-primary-200 bg-primary-50">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                className="btn-primary flex items-center gap-2 shrink-0"
+              >
+                {listening ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Mic className="h-5 w-5" />
+                )}
+                {listening
+                  ? t('buyerRequests.listening', 'Listening… speak now')
+                  : t('buyerRequests.speakRequirement', 'Speak your requirement')}
+              </button>
+              <p className="text-sm text-gray-600">
+                {t(
+                  'buyerRequests.speakHint',
+                  'Tell us what you need in your own words — we will fill the form for you.'
+                )}
+              </p>
+            </div>
+            {transcript && (
+              <p className="mt-3 text-sm text-gray-700 italic">“{transcript}”</p>
+            )}
+          </div>
+
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -168,7 +274,7 @@ export default function BuyerRequestForm() {
               {t('buyerRequests.category', 'Category')}
             </label>
             <div className="grid grid-cols-3 gap-2">
-              {['Ceramics', 'Textiles', 'Woodwork', 'Metalwork', 'Jewelry', 'Painting'].map(cat => (
+              {CATEGORY_CHOICES.map((cat) => (
                 <button
                   key={cat}
                   type="button"
@@ -277,27 +383,42 @@ export default function BuyerRequestForm() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               {t('buyerRequests.voiceNote', 'Voice Note')}
             </label>
-            <button
-              type="button"
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-                isRecording
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-              }`}
-            >
-              {isRecording ? (
-                <>
-                  <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
-                  {t('buyerRequests.stopRecording', 'Stop Recording')}
-                </>
-              ) : (
-                <>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                  isRecording
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+              >
+                {isRecording ? (
+                  <>
+                    <div className="h-3 w-3 bg-red-500 rounded-full animate-pulse" />
+                    {t('buyerRequests.stopRecording', 'Stop Recording')}
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-5 w-5" />
+                    {t('buyerRequests.startRecording', 'Start Recording')}
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleVoiceInput}
+                className="px-4 py-2 rounded-lg font-medium flex items-center gap-2 bg-primary-50 hover:bg-primary-100 text-primary-700 border border-primary-200"
+              >
+                {listening ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
                   <Mic className="h-5 w-5" />
-                  {t('buyerRequests.startRecording', 'Start Recording')}
-                </>
-              )}
-            </button>
+                )}
+                {t('buyerRequests.speakInstead', 'Speak instead (fills the description)')}
+              </button>
+            </div>
           </div>
 
           {/* Error Message */}

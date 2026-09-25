@@ -21,6 +21,11 @@ model User {
   avatar              String?
   rating              Float?
   isApproved          Boolean       @default(true)
+
+  // Identity verification — only the last 4 digits of the ID are ever stored
+  verifiedAt          DateTime?
+  idType              String?
+  idLast4             String?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
@@ -52,6 +57,10 @@ model User {
   artisanQuotes       Quote[] @relation("QuoteArtisan")
   conversationSender  Conversation[] @relation("ConversationSender")
   conversationReceiver Conversation[] @relation("ConversationReceiver")
+
+  // Reviews
+  reviewsGiven        Review[] @relation("ReviewBuyer")
+  reviewsReceived     Review[] @relation("ReviewArtisan")
 }
 
 model Product {
@@ -89,9 +98,33 @@ model Product {
   enquiries           Enquiry[] @relation("EnquiryProduct")
   orderItems          OrderItem[] @relation("OrderItemProduct")
 
+  reviews             Review[] @relation("ProductReviews")
+
   @@index([artisanId])
   @@index([status])
   @@index([category])
+}
+
+// Buyer reviews of a product (and the artisan who made it)
+model Review {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation("ProductReviews", fields: [productId], references: [id], onDelete: Cascade)
+
+  buyerId    String
+  buyer      User     @relation("ReviewBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  artisanId  String
+  artisan    User     @relation("ReviewArtisan", fields: [artisanId], references: [id], onDelete: Cascade)
+
+  rating     Int
+  comment    String?
+
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, buyerId])
+  @@index([productId])
+  @@index([artisanId])
 }
 
 model Enquiry {

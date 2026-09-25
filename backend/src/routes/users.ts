@@ -22,6 +22,9 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
         bio: true,
         avatar: true,
         createdAt: true,
+        isApproved: true,
+        rating: true,
+        verifiedAt: true,
       },
     });
 
@@ -60,6 +63,48 @@ router.get('/me', authenticate, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Get profile error:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Submit identity for verification (artisan only).
+// Only the last 4 digits are stored — the full number is never persisted.
+router.post('/me/verification', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.user!.role !== 'ARTISAN') {
+      return res.status(403).json({ error: 'Only artisans can be verified' });
+    }
+
+    const { idType, idNumber } = req.body;
+    if (!idType || !idNumber || String(idNumber).length < 4) {
+      return res.status(400).json({ error: 'idType and a valid idNumber are required' });
+    }
+
+    const digits = String(idNumber).replace(/\D/g, '') || String(idNumber);
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: {
+        idType,
+        idLast4: digits.slice(-4),
+        verifiedAt: new Date(),
+        isApproved: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        isApproved: true,
+        rating: true,
+        verifiedAt: true,
+        idType: true,
+        idLast4: true,
+      },
+    });
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ error: 'Failed to submit verification' });
   }
 });
 
@@ -150,6 +195,9 @@ router.get('/artisan/:id', async (req, res) => {
         bio: true,
         avatar: true,
         createdAt: true,
+        isApproved: true,
+        rating: true,
+        verifiedAt: true,
       },
     });
 

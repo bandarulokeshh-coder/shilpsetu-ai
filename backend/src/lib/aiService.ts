@@ -825,9 +825,12 @@ export function understandRequirementsService(text: string): ExtractedRequiremen
   const requirements: ExtractedRequirements = { additionalNotes: lower };
 
   // --- Budget extraction ---
-  const budgetMatch = lower.match(/(\d+)\s*(k|thousand|lac|lakh|lacsh|laksh)?\s*(rs|rupees|rs\.|₹)?/i);
+  // Prefer a number that is actually tied to a currency word ("15 thousand rupees") so a
+  // plain quantity like "20 brass diyas" is never mistaken for the budget.
+  const currencyAnchored = lower.match(/(\d[\d,]*)\s*(k|thousand|lac|lakh|lacsh|laksh|lakhs)?\s*(rs\.?|rupees|₹)/i);
+  const budgetMatch = currencyAnchored ?? lower.match(/(\d[\d,]*)\s*(k|thousand|lac|lakh|lacsh|laksh)?/i);
   if (budgetMatch) {
-    let amount = parseInt(budgetMatch[1], 10);
+    let amount = parseInt(budgetMatch[1].replace(/,/g, ''), 10);
     const modifier = (budgetMatch[2] || '').toLowerCase();
     if (modifier.includes('k') || modifier.includes('thousand')) {
       amount *= 1000;
@@ -843,6 +846,12 @@ export function understandRequirementsService(text: string): ExtractedRequiremen
   if (quantityMatch) {
     requirements.quantity = parseInt(quantityMatch[1], 10);
     requirements.additionalNotes = requirements.additionalNotes?.replace(quantityMatch[0], '').trim();
+  } else if (requirements.budget) {
+    // Fallback for "20 brass diyas": use the first number that is not the budget.
+    const firstNumber = lower.match(/(\d+)/);
+    if (firstNumber && Number(firstNumber[1]) !== requirements.budget) {
+      requirements.quantity = parseInt(firstNumber[1], 10);
+    }
   }
 
   // --- Material extraction ---

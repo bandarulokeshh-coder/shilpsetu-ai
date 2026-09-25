@@ -5,12 +5,13 @@ import Layout from '../components/Layout';
 import Loading from '../components/Loading';
 import QRCodePreview from '../components/QRCodePreview';
 import ExportListing from '../components/ExportListing';
-import { productsApi, enquiriesApi, Product } from '../lib/api';
+import { productsApi, enquiriesApi, usersApi, reviewsApi, Product, Review } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useCartStore } from '../lib/cart';
 import { getImageUrl, formatCurrency, PLACEHOLDER_IMAGE } from '../lib/utils';
 import { PRODUCT_STATUS } from '../lib/constants';
-import { MapPin, User, Tag, Package, MessageSquare, ShoppingCart } from 'lucide-react';
+import { MapPin, User, Tag, Package, MessageSquare, ShoppingCart, Star, ShieldCheck } from 'lucide-react';
+import VerifiedBadge from '../components/VerifiedBadge';
 import toast from 'react-hot-toast';
 
 export default function ProductDetail() {
@@ -25,15 +26,65 @@ export default function ProductDetail() {
     quantity: 1,
     message: '',
   });
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState<number | null>(null);
+  const [artisanTrust, setArtisanTrust] = useState<{ verified: boolean; rating: number | null } | null>(null);
+  const [myRating, setMyRating] = useState(0);
+  const [myComment, setMyComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     loadProduct();
   }, [id]);
 
+  useEffect(() => {
+    loadReviews();
+  }, [id, product?.artisan?.id]);
+
+  const loadReviews = async () => {
+    try {
+      const response = await reviewsApi.forProduct(id!);
+      setReviews(response.data.reviews);
+      setAverageRating(response.data.averageRating);
+    } catch {
+      // Reviews are supplementary — never block the product page.
+    }
+  };
+
+  const loadArtisanTrust = async (artisanId: string) => {
+    try {
+      const artisan = (await usersApi.getArtisan(artisanId)).data;
+      setArtisanTrust({ verified: Boolean(artisan.verifiedAt), rating: artisan.rating ?? null });
+    } catch {
+      setArtisanTrust(null);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!myRating || !product) return;
+
+    setSubmittingReview(true);
+    try {
+      await reviewsApi.create({ productId: product.id, rating: myRating, comment: myComment || undefined });
+      toast.success(t('reviews.submitted', 'Thanks for your review!'));
+      setMyRating(0);
+      setMyComment('');
+      await loadReviews();
+      if (product.artisan?.id) await loadArtisanTrust(product.artisan.id);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || t('reviews.failed', 'Failed to submit review'));
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const loadProduct = async () => {
     try {
       const response = await productsApi.getById(id!);
       setProduct(response.data);
+      if (response.data.artisan?.id) {
+        loadArtisanTrust(response.data.artisan.id);
+      }
     } catch (error) {
       toast.error(t('productDetail.loadFailed'));
     } finally {
@@ -67,6 +118,18 @@ export default function ProductDetail() {
   };
 
   const isOwner = user?.id === product?.artisanId;
+
+  // Cost transparency: the buyer sees exactly what the artisan spends
+  const totalCost =
+    (product?.rawMaterialCost || 0) +
+    (product?.labourCost || 0) +
+    (product?.packagingCost || 0) +
+    (product?.otherCost || 0);
+  const artisanEarnings = Math.max((product?.suggestedPrice || 0) - totalCost, 0);
+  const suggestedMargin =
+    product?.suggestedPrice && product.suggestedPrice > 0
+      ? Math.round(((product.suggestedPrice - totalCost) / product.suggestedPrice) * 100)
+      : 0;
   const statusBadgeClass =
     product?.status === 'APPROVED'
       ? 'bg-green-100 text-green-800'
@@ -183,6 +246,62 @@ export default function ProductDetail() {
               </div>
             )}
 
+            {/* Fair price transparency — where the buyer's money goes */}
+            {totalCost > 0 && (
+              <div className="card bg-gray-50 mb-6">
+                <h3 className="font-semibold mb-1 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-primary-600" />
+                  {t('productDetail.fairPrice', 'Fair price breakdown')}
+                </h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  {t(
+                    'productDetail.fairPriceHint',
+                    'What the artisan spends to make this. We never price below cost.'
+                  )}
+                </p>
+
+                <div className="space-y-1 text-sm">
+                  {[
+                    { label: t('cost.materials', 'Materials'), value: product.rawMaterialCost },
+                    { label: t('cost.labour', 'Labour'), value: product.labourCost },
+                    { label: t('cost.packaging', 'Packaging'), value: product.packagingCost },
+                    { label: t('cost.other', 'Other'), value: product.otherCost },
+                  ].map((row) => (
+                    <div key={row.label} className="flex justify-between text-gray-700">
+                      <span>{row.label}</span>
+                      <span>{formatCurrency(row.value || 0)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                    <span>{t('cost.total', 'Total cost')}</span>
+                    <span>{formatCurrency(totalCost)}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                  {[
+                    { label: t('pricing.minimum', 'Minimum'), value: product.minimumPrice },
+                    { label: t('pricing.suggested', 'Suggested'), value: product.suggestedPrice },
+                    { label: t('pricing.premium', 'Premium'), value: product.premiumPrice },
+                  ].map((tier) => (
+                    <div key={tier.label} className="bg-white rounded-lg p-2 border border-gray-100">
+                      <p className="text-xs text-gray-500">{tier.label}</p>
+                      <p className="font-semibold text-primary-700">{formatCurrency(tier.value || 0)}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {artisanEarnings > 0 && (
+                  <p className="text-xs text-green-800 bg-green-50 rounded p-2 mt-3">
+                    {t('productDetail.artisanEarns', 'The artisan earns {amount} per piece, after every cost.', {
+                      amount: formatCurrency(artisanEarnings),
+                    })}
+                    {suggestedMargin > 0 && ` (${suggestedMargin}% margin)`}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Artisan Info */}
             {product.artisan && (
               <div className="card bg-gray-50 mb-6">
@@ -193,7 +312,12 @@ export default function ProductDetail() {
                 >
                   <User className="h-10 w-10 text-gray-400" />
                   <div>
-                    <p className="font-medium">{product.artisan.name}</p>
+                    <p className="font-medium flex items-center gap-2">
+                      {product.artisan.name}
+                      {artisanTrust && (
+                        <VerifiedBadge verified={artisanTrust.verified} rating={artisanTrust.rating} />
+                      )}
+                    </p>
                     {product.artisan.location && (
                       <p className="text-sm text-gray-600 flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
@@ -289,6 +413,87 @@ export default function ProductDetail() {
             <h2 className="text-2xl font-bold mb-4">{t('productDetail.shareProduct')}</h2>
             <QRCodePreview productId={product.id} title={product.title} />
           </div>
+        </div>
+        {/* Buyer reviews */}
+        <div className="mt-12">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-2xl font-bold">{t('reviews.title', 'Buyer reviews')}</h2>
+            {averageRating != null && (
+              <span className="flex items-center gap-1 text-gray-600">
+                <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                <span className="font-semibold">{averageRating.toFixed(1)}</span>
+                <span className="text-sm">({reviews.length})</span>
+              </span>
+            )}
+          </div>
+
+          {user?.role === 'BUYER' && !isOwner && (
+            <div className="card bg-gray-50 mb-6">
+              <h3 className="font-semibold mb-2">{t('reviews.write', 'Rate this product')}</h3>
+              <div className="flex gap-1 mb-3">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setMyRating(star)}
+                    aria-label={`${star} ${t('reviews.stars', 'stars')}`}
+                  >
+                    <Star
+                      className={`h-7 w-7 ${
+                        myRating >= star ? 'fill-amber-400 text-amber-400' : 'text-gray-300'
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="input mb-3"
+                rows={3}
+                value={myComment}
+                onChange={(e) => setMyComment(e.target.value)}
+                placeholder={t('reviews.commentPlaceholder', 'What did you like or dislike? (optional)')}
+              />
+              <button
+                onClick={handleSubmitReview}
+                disabled={submittingReview || myRating === 0}
+                className="btn-primary"
+              >
+                {submittingReview
+                  ? t('common.saving', 'Saving…')
+                  : t('reviews.submit', 'Submit review')}
+              </button>
+            </div>
+          )}
+
+          {reviews.length === 0 ? (
+            <p className="text-gray-600">
+              {t('reviews.none', 'No reviews yet — be the first to share your experience.')}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {reviews.map((review) => (
+                <div key={review.id} className="card">
+                  <div className="flex items-center justify-between gap-3 mb-1">
+                    <p className="font-medium">{review.buyer?.name}</p>
+                    <span className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            review.rating >= star ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+                          }`}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                  {review.comment && <p className="text-sm text-gray-700">{review.comment}</p>}
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </Layout>
