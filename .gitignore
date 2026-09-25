@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment secrets (keep .env.example tracked)
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Logs & OS files
+*.log
+.DS_Store
+Thumbs.db
+
+# Databases
+dev.db
+dev.db-journal
+
+# Editors
+.vscode/
+.idea/
