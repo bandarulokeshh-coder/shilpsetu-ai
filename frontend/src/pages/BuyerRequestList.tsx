@@ -24,9 +24,12 @@ export default function BuyerRequestList() {
   const loadRequests = async () => {
     try {
       const response = await buyerRequestsApi.getAll();
+      const allRequests = response.data;
+      // "QUOTED" is only the UI label — the backend status is QUOTE_RECEIVED
+      const statusFilter = filter === 'QUOTED' ? 'QUOTE_RECEIVED' : filter;
       const filtered = filter === 'ALL'
-        ? response.data
-        : response.data.filter(r => r.status === filter);
+        ? allRequests
+        : allRequests.filter(r => r.status === statusFilter);
       setRequests(filtered);
     } catch (error) {
       toast.error(t('buyerRequests.loadFailed', 'Failed to load requests'));

@@ -454,12 +454,16 @@ export interface BuyerRequestCreate {
 
 // Buyer Requests API
 export const buyerRequestsApi = {
-  getAll: () => api.get<BuyerRequest[]>('/api/buyer-requests'),
+  /** The list endpoint returns { requests, total, limit, offset } — unwrap it to an array. */
+  getAll: () =>
+    api
+      .get<{ requests: BuyerRequest[]; total: number; limit: number; offset: number }>('/api/buyer-requests')
+      .then((res) => ({ ...res, data: res.data?.requests ?? [] })),
 
   getById: (id: string) => api.get<BuyerRequest>(`/api/buyer-requests/${id}`),
 
-  /** Buyer's own requests. */
-  getMine: () => api.get<BuyerRequest[]>('/api/buyer-requests/mine'),
+  /** Buyer's own requests (the API has no /mine route — same list endpoint). */
+  getMine: () => buyerRequestsApi.getAll(),
 
   create: (data: BuyerRequestCreate) => {
     const formData = new FormData();
@@ -486,27 +490,30 @@ export const buyerRequestsApi = {
   matchArtisan: (id: string) => api.post<BuyerRequest>(`/api/buyer-requests/${id}/match`, {}),
 
   /** Quotes for a buyer request */
-  getQuotes: (requestId: string) => api.get<Quote[]>(`/api/buyer-requests/${requestId}/quotes`),
+  getQuotes: (requestId: string) => quotesApi.getByRequest(requestId),
 
   /** Conversations for a buyer request */
-  getConversations: (requestId: string) => api.get<Conversation[]>(`/api/buyer-requests/${requestId}/conversations`),
+  getConversations: (requestId: string) => conversationsApi.getByRequest(requestId),
 };
+
+/** The API returns `message`/`expiryDate`; the UI expects `description`/`deadline`. */
+const mapQuote = (quote: any): Quote => ({
+  ...quote,
+  description: quote.description ?? quote.message ?? '',
+  deadline: quote.deadline ?? quote.expiryDate,
+});
 
 // Quotes API
 export const quotesApi = {
-  getAll: () => api.get<Quote[]>('/api/quotes'),
+  getAll: () =>
+    api
+      .get<{ quotes: any[] }>('/api/quotes')
+      .then((res) => ({ ...res, data: (res.data?.quotes ?? []).map(mapQuote) })),
 
   getByRequest: (requestId: string) =>
     api
       .get<{ quotes: any[] }>(`/api/quotes/request/${requestId}`)
-      .then((res) => ({
-        ...res,
-        data: (res.data.quotes ?? []).map((quote) => ({
-          ...quote,
-          description: quote.description ?? quote.message ?? '',
-          deadline: quote.deadline ?? quote.expiryDate,
-        })) as Quote[],
-      })),
+      .then((res) => ({ ...res, data: (res.data?.quotes ?? []).map(mapQuote) })),
 
   create: (data: {
     buyerRequestId: string;
@@ -532,7 +539,9 @@ export const conversationsApi = {
       .then((res) => ({ ...res, data: res.data.messages ?? [] })),
 
   getWithUser: (requestId: string, otherUserId: string) =>
-    api.get<Conversation[]>(`/api/conversations/request/${requestId}/users/${otherUserId}`),
+    api
+      .get<{ messages: Conversation[] }>(`/api/conversations/request/${requestId}/users/${otherUserId}`)
+      .then((res) => ({ ...res, data: res.data?.messages ?? [] })),
 
   create: (data: {
     buyerRequestId: string;
