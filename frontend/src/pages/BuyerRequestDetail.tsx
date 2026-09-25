@@ -6,7 +6,7 @@ import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
 import { buyerRequestsApi, quotesApi, conversationsApi, BuyerRequest, Quote, Conversation } from '../lib/api';
 import { useAuthStore } from '../lib/store';
-import { ChevronLeft, Calendar, MapPin, Tag, Clock, MessageCircle, Send, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, Calendar, MapPin, Tag, Clock, MessageCircle, Send, Image as ImageIcon, Sparkles, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatDistance } from 'date-fns';
 
@@ -22,6 +22,7 @@ export default function BuyerRequestDetail() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [matching, setMatching] = useState(false);
 
   useEffect(() => {
     loadRequest();
@@ -42,6 +43,24 @@ export default function BuyerRequestDetail() {
       navigate('/buyer/requests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFindArtisans = async () => {
+    setMatching(true);
+    try {
+      const response = await buyerRequestsApi.matchArtisan(id!);
+      const found = response.data.matches.length;
+      toast.success(
+        found > 0
+          ? t('buyerRequests.matchedFound', 'Found {{count}} matching artisan(s)', { count: found })
+          : t('buyerRequests.noMatches', 'No artisans matched this request yet')
+      );
+      loadRequest();
+    } catch (error) {
+      toast.error(t('buyerRequests.matchFailed', 'Failed to find matching artisans'));
+    } finally {
+      setMatching(false);
     }
   };
 
@@ -137,15 +156,34 @@ export default function BuyerRequestDetail() {
           <div className="lg:col-span-2 space-y-6">
             {/* Request Details */}
             <div className="card">
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex justify-between items-start mb-4 gap-3">
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(request.status)}`}>
                   {t(`buyerRequests.status.${request.status}`, request.status)}
                 </span>
-                {request.matchedArtisan && (
-                  <span className="text-sm text-blue-600 font-medium">
-                    {t('buyerRequests.matched', 'Matched')}
-                  </span>
-                )}
+                <div className="flex items-center gap-3">
+                  {request.matchedArtisan && (
+                    <span className="text-sm text-blue-600 font-medium">
+                      {t('buyerRequests.matched', 'Matched')}
+                    </span>
+                  )}
+                  {request.buyerId === user?.id && ['PENDING', 'MATCHED'].includes(request.status) && (
+                    <button
+                      type="button"
+                      onClick={handleFindArtisans}
+                      disabled={matching}
+                      className="btn-outline text-sm flex items-center gap-1"
+                    >
+                      {matching ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                      {matching
+                        ? t('buyerRequests.matching', 'Matching…')
+                        : t('buyerRequests.findArtisans', 'Find Artisans')}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <h1 className="text-2xl font-bold mb-4">{request.title}</h1>
@@ -201,6 +239,34 @@ export default function BuyerRequestDetail() {
                 </div>
               )}
             </div>
+
+            {/* AI-suggested artisans */}
+            {request.artisanMatches && request.artisanMatches.length > 0 && (
+              <div className="mt-6">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary-600" />
+                  {t('buyerRequests.suggestedArtisans', 'Suggested artisans')}
+                </h3>
+                <div className="space-y-2">
+                  {request.artisanMatches.map((match) => (
+                    <div key={match.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
+                      <div className="min-w-0">
+                        <p className="font-medium truncate">
+                          {match.artisan?.name}
+                          {match.artisan?.craftType ? ` · ${match.artisan.craftType}` : ''}
+                        </p>
+                        {match.matchReason && (
+                          <p className="text-xs text-gray-500 truncate">{match.matchReason}</p>
+                        )}
+                      </div>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 shrink-0">
+                        {match.matchScore} {t('buyerRequests.points', 'pts')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Quotes */}
             {quotes.length > 0 && (

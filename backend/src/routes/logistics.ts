@@ -245,6 +245,8 @@ router.patch('/shipments/:id/status', authenticate, async (req: AuthRequest, res
       data: {
         shipmentId: req.params.id,
         eventType: status,
+        status,
+        description: `Status updated to ${status}`,
         notes: `Status updated to ${status}`,
         timestamp: new Date(),
       },

@@ -4,8 +4,9 @@ import Layout from '../components/Layout';
 import ProductCard from '../components/ProductCard';
 import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
-import { productsApi, buyerRequestsApi, Product, BuyerRequest } from '../lib/api';
-import { Search, Filter, Tag, Calendar, MapPin, User, Handshake } from 'lucide-react';
+import { productsApi, buyerRequestsApi, quotesApi, Product, BuyerRequest } from '../lib/api';
+import { useAuthStore } from '../lib/store';
+import { Search, Filter, Tag, Calendar, MapPin, User, Handshake, IndianRupee, Loader2 } from 'lucide-react';
 import { CATEGORIES } from '../lib/constants';
 import toast from 'react-hot-toast';
 import { formatDistance } from 'date-fns';
@@ -23,6 +24,11 @@ export default function BuyerMarketplace() {
   const [view, setView] = useState<'products' | 'requests'>('products');
   const [requests, setRequests] = useState<BuyerRequest[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
+  const { user } = useAuthStore();
+  const [quotingId, setQuotingId] = useState<string | null>(null);
+  const [quoteAmount, setQuoteAmount] = useState('');
+  const [quoteMessage, setQuoteMessage] = useState('');
+  const [quoteSending, setQuoteSending] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -56,6 +62,34 @@ export default function BuyerMarketplace() {
       toast.error(t('marketplace.requestsLoadFailed', 'Failed to load buyer requests'));
     } finally {
       setRequestsLoading(false);
+    }
+  };
+
+  // Artisans can quote an open request directly from the public demand board.
+  const handleSendQuote = async (request: BuyerRequest) => {
+    const amount = Number(quoteAmount);
+    if (!amount || amount <= 0) {
+      toast.error(t('marketplace.quoteAmountRequired', 'Enter a valid quote amount'));
+      return;
+    }
+
+    setQuoteSending(true);
+    try {
+      await quotesApi.create({
+        buyerRequestId: request.id,
+        amount,
+        message: quoteMessage.trim() || undefined,
+      });
+      toast.success(t('marketplace.quoteSent', 'Quote sent to the buyer'));
+      setQuotingId(null);
+      setQuoteAmount('');
+      setQuoteMessage('');
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.error ?? t('marketplace.quoteFailed', 'Failed to send quote');
+      toast.error(message);
+    } finally {
+      setQuoteSending(false);
     }
   };
 
@@ -297,6 +331,66 @@ export default function BuyerMarketplace() {
                       {formatDistance(new Date(request.createdAt), new Date(), { addSuffix: true })}
                     </span>
                   </div>
+
+                  {/* Artisans can quote this demand inline */}
+                  {user?.role === 'ARTISAN' && request.buyerId !== user.id && (
+                    <div className="mt-3">
+                      {quotingId === request.id ? (
+                        <div className="space-y-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={quoteAmount}
+                            onChange={(e) => setQuoteAmount(e.target.value)}
+                            placeholder={t('marketplace.quoteAmount', 'Your price (₹)')}
+                            className="input w-full"
+                          />
+                          <input
+                            type="text"
+                            value={quoteMessage}
+                            onChange={(e) => setQuoteMessage(e.target.value)}
+                            placeholder={t('marketplace.quoteMessage', 'Message to the buyer (optional)')}
+                            className="input w-full"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleSendQuote(request)}
+                              disabled={quoteSending}
+                              className="btn-primary text-sm flex-1 flex items-center justify-center gap-1"
+                            >
+                              {quoteSending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <IndianRupee className="h-4 w-4" />
+                              )}
+                              {t('marketplace.sendQuote', 'Send Quote')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setQuotingId(null)}
+                              className="btn-outline text-sm"
+                            >
+                              {t('common.cancel', 'Cancel')}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuotingId(request.id);
+                            setQuoteAmount(request.maxBudget ? String(request.maxBudget) : '');
+                            setQuoteMessage('');
+                          }}
+                          className="btn-outline w-full text-sm flex items-center justify-center gap-1"
+                        >
+                          <IndianRupee className="h-4 w-4" />
+                          {t('marketplace.quoteOnRequest', 'I can make this — send quote')}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

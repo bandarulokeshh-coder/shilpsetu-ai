@@ -17,7 +17,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   const handleWishlist = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    toggleWishlist(product.id);
+    toggleWishlist(product);
   };
 
   return (

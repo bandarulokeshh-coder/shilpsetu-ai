@@ -182,6 +182,79 @@ router.get('/public', async (req, res) => {
   }
 });
 
+// Demand forecast — turns open buyer requests into actionable opportunity data.
+// This is the "AI shows artisans where the money is" view on the artisan dashboard.
+router.get('/insights/forecast', authenticate, async (req: AuthRequest, res) => {
+  try {
+    const windowDays = Math.min(Math.max(Number(req.query.days) || 30, 7), 180);
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+
+    const openRequests = await prisma.buyerRequest.findMany({
+      where: { status: { not: 'CLOSED' } },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        quantity: true,
+        maxBudget: true,
+        deadline: true,
+        createdAt: true,
+        buyer: { select: { name: true, location: true } },
+      },
+    });
+
+    // Requests with no deadline are always "in window" — they are live demand.
+    const inWindow = openRequests.filter((r) => !r.deadline || r.deadline <= windowEnd);
+    const estimatedValue = inWindow.reduce((sum, r) => sum + (r.maxBudget ?? 0), 0);
+
+    const categoryMap = new Map<string, { category: string; requests: number; quantity: number; estimatedValue: number }>();
+    const locationMap = new Map<string, number>();
+
+    for (const request of inWindow) {
+      const category = request.category || 'Other';
+      const entry = categoryMap.get(category) ?? { category, requests: 0, quantity: 0, estimatedValue: 0 };
+      entry.requests += 1;
+      entry.quantity += request.quantity ?? 1;
+      entry.estimatedValue += request.maxBudget ?? 0;
+      categoryMap.set(category, entry);
+
+      if (request.buyer?.location) {
+        locationMap.set(request.buyer.location, (locationMap.get(request.buyer.location) ?? 0) + 1);
+      }
+    }
+
+    const closingSoon = openRequests
+      .filter((r) => r.deadline && r.deadline >= now && r.deadline <= windowEnd)
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+      .slice(0, 5)
+      .map((r) => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        deadline: r.deadline,
+        maxBudget: r.maxBudget,
+        quantity: r.quantity,
+      }));
+
+    res.json({
+      windowDays,
+      totalOpen: openRequests.length,
+      inWindow: inWindow.length,
+      estimatedValue,
+      byCategory: [...categoryMap.values()].sort((a, b) => b.estimatedValue - a.estimatedValue),
+      topLocations: [...locationMap.entries()]
+        .map(([location, requests]) => ({ location, requests }))
+        .sort((a, b) => b.requests - a.requests)
+        .slice(0, 5),
+      closingSoon,
+    });
+  } catch (error) {
+    console.error('Demand forecast error:', error);
+    res.status(500).json({ error: 'Failed to build demand forecast' });
+  }
+});
+
 // Get a specific buyer request
 router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   try {

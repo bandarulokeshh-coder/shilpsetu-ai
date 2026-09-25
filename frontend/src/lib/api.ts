@@ -319,23 +319,45 @@ export interface BuyerRequest {
     rating?: number;
   };
   quotes?: Quote[];
+  artisanMatches?: ArtisanMatch[];
 }
 
+/** An AI-suggested artisan for a buyer request (scored + explained via matchReason). */
 export interface ArtisanMatch {
   id: string;
   buyerRequestId: string;
   artisanId: string;
-  score: number;
-  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'REJECTED';
-  matchedAt: string;
+  matchScore: number;
+  matchReason?: string;
+  status: 'SUGGESTED' | 'ACCEPTED' | 'REJECTED';
+  createdAt: string;
   artisan?: {
     id: string;
     name: string;
     location?: string;
     craftType?: string;
     avatar?: string;
+    bio?: string;
     rating?: number;
   };
+}
+
+/** Aggregated demand across open buyer requests — powers the artisan forecast. */
+export interface DemandForecast {
+  windowDays: number;
+  totalOpen: number;
+  inWindow: number;
+  estimatedValue: number;
+  byCategory: { category: string; requests: number; quantity: number; estimatedValue: number }[];
+  topLocations: { location: string; requests: number }[];
+  closingSoon: {
+    id: string;
+    title: string;
+    category?: string | null;
+    deadline: string;
+    maxBudget?: number | null;
+    quantity: number;
+  }[];
 }
 
 export interface Quote {
@@ -493,7 +515,12 @@ export const buyerRequestsApi = {
   updateStatus: (id: string, status: BuyerRequest['status']) =>
     api.put<BuyerRequest>(`/api/buyer-requests/${id}/status`, { status }),
 
-  matchArtisan: (id: string) => api.post<BuyerRequest>(`/api/buyer-requests/${id}/match`, {}),
+  matchArtisan: (id: string) =>
+    api.post<{ matches: ArtisanMatch[]; request: BuyerRequest }>(`/api/buyer-requests/${id}/match`, {}),
+
+  /** Demand forecast: what buyers are asking for, grouped and valued. */
+  getForecast: (days?: number) =>
+    api.get<DemandForecast>('/api/buyer-requests/insights/forecast', { params: { days } }),
 
   /** Quotes for a buyer request */
   getQuotes: (requestId: string) => quotesApi.getByRequest(requestId),
@@ -524,7 +551,7 @@ export const quotesApi = {
   create: (data: {
     buyerRequestId: string;
     amount: number;
-    description: string;
+    message?: string;
     deadline?: string;
   }) => api.post<Quote>('/api/quotes', data),
 

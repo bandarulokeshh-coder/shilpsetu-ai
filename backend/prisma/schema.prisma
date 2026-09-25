@@ -124,7 +124,9 @@ model Order {
   shippingPhone   String
   shippingAddress String
   shippingCity    String
+  shippingState   String?
   shippingPincode String
+  shippingCountry String?
 
   items           OrderItem[] @relation("OrderItems")
 
@@ -406,6 +408,7 @@ model ShipmentEvent {
   status      String
   location    String?
   description String
+  notes       String?
   timestamp   DateTime
 
   createdAt   DateTime @default(now())

@@ -43,7 +43,7 @@ export default function CatalogQualityPanel({ product, compact = false }: Catalo
           <div className={`h-full rounded-full ${result.score >= 80 ? 'bg-green-500' : result.score >= 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${result.score}%` }} />
         </div>
         <span className="text-xs text-gray-500">
-          {result.passedCount}/{result.totalCount} {t('catalogQuality.checks', 'checks')}
+          {result.completed}/{result.totalCount} {t('catalogQuality.checks', 'checks')}
         </span>
       </div>
     );

@@ -7,8 +7,38 @@ export interface WishlistState {
   productIds: string[];
   add: (product: Product) => void;
   remove: (productId: string) => void;
-  toggle: (productId: string) => void;
+  toggle: (product: Product) => void;
   clear: () => void;
+}
+
+/** Trims, drops blanks and de-duplicates a raw list of product IDs. */
+export function normalizeWishlistIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const raw of ids) {
+    const id = (raw ?? '').trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+
+  return normalized;
+}
+
+/** Adds a product ID once, keeping the existing order. */
+export function addWishlistId(ids: readonly string[], productId: string): string[] {
+  const normalized = normalizeWishlistIds(ids);
+  const id = (productId ?? '').trim();
+
+  if (!id || normalized.includes(id)) return normalized;
+  return [...normalized, id];
+}
+
+/** Removes a product ID, ignoring blanks and duplicates. */
+export function removeWishlistId(ids: readonly string[], productId: string): string[] {
+  const id = (productId ?? '').trim();
+  return normalizeWishlistIds(ids).filter((item) => item !== id);
 }
 
 /** Pure list operations keep persistence simple and make the behavior testable. */
@@ -35,17 +65,15 @@ export const useWishlistStore = create<WishlistState>()(
       productIds: [],
       add: (product) => {
         const newItems = addToWishlist(get().items, product);
-        set({ items: newItems, productIds: newItems.map((p) => p.id) });
+        set({ items: newItems, productIds: normalizeWishlistIds(newItems.map((p) => p.id)) });
       },
       remove: (productId) => {
         const newItems = removeFromWishlist(get().items, productId);
-        set({ items: newItems, productIds: newItems.map((p) => p.id) });
+        set({ items: newItems, productIds: normalizeWishlistIds(newItems.map((p) => p.id)) });
       },
-      toggle: (productId) => {
-        const product = get().items.find((p) => p.id === productId);
-        if (!product) return;
+      toggle: (product) => {
         const newItems = toggleWishlist(get().items, product);
-        set({ items: newItems, productIds: newItems.map((p) => p.id) });
+        set({ items: newItems, productIds: normalizeWishlistIds(newItems.map((p) => p.id)) });
       },
       clear: () => set({ items: [], productIds: [] }),
     }),

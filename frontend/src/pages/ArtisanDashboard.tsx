@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import Layout from '../components/Layout';
 import Loading from '../components/Loading';
 import EmptyState from '../components/EmptyState';
-import { productsApi, enquiriesApi, usersApi, Product, Enquiry, User } from '../lib/api';
+import { productsApi, enquiriesApi, usersApi, buyerRequestsApi, Product, Enquiry, User, DemandForecast } from '../lib/api';
 import { formatCurrency, getImageUrl } from '../lib/utils';
-import { Plus, Package, MessageSquare, DollarSign, Eye, Edit, Trash2, Share2 } from 'lucide-react';
+import { Plus, Package, MessageSquare, DollarSign, Eye, Edit, Trash2, Share2, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function ArtisanDashboard() {
@@ -15,10 +15,22 @@ export default function ArtisanDashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [forecast, setForecast] = useState<DemandForecast | null>(null);
 
   useEffect(() => {
     loadData();
+    loadForecast();
   }, []);
+
+  // The forecast is a nice-to-have: never let it block the dashboard.
+  const loadForecast = async () => {
+    try {
+      const response = await buyerRequestsApi.getForecast(30);
+      setForecast(response.data);
+    } catch {
+      setForecast(null);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -118,6 +130,77 @@ export default function ArtisanDashboard() {
           <h1 className="text-3xl font-bold mb-2">{t('dashboard.title', 'Artisan Dashboard')}</h1>
           <p className="text-gray-600">{t('dashboard.welcome', { name: profile?.name })}</p>
         </div>
+
+        {/* Demand forecast — what buyers are asking for right now */}
+        {forecast && (
+          <div className="card border-2 border-primary-200 bg-gradient-to-br from-primary-50 to-white mb-8">
+            <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary-600" />
+                  {t('dashboard.demandForecast', 'Demand near you')}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {t('dashboard.demandForecastSubtitle', 'What buyers are asking for in the next {{days}} days', {
+                    days: forecast.windowDays,
+                  })}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-600">{t('dashboard.estimatedValue', 'Estimated value')}</p>
+                <p className="text-2xl font-bold text-primary-600">{formatCurrency(forecast.estimatedValue)}</p>
+              </div>
+            </div>
+
+            {forecast.byCategory.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                {forecast.byCategory.slice(0, 4).map((entry) => (
+                  <div
+                    key={entry.category}
+                    className="flex items-center justify-between gap-3 p-3 bg-white rounded-lg border border-gray-100"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{entry.category}</p>
+                      <p className="text-xs text-gray-500">
+                        {t('dashboard.demandRequests', '{count} request(s) · {qty} units', {
+                          count: entry.requests,
+                          qty: entry.quantity,
+                        })}
+                      </p>
+                    </div>
+                    <span className="font-semibold text-primary-700 shrink-0">
+                      {formatCurrency(entry.estimatedValue)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 mb-4">
+                {t('dashboard.noDemand', 'No open buyer requests yet — check back soon.')}
+              </p>
+            )}
+
+            {forecast.closingSoon.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2">{t('dashboard.closingSoon', 'Deadlines coming up')}</h3>
+                <ul className="space-y-1 text-sm text-gray-700">
+                  {forecast.closingSoon.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between gap-2">
+                      <span className="truncate">{item.title}</span>
+                      <span className="text-xs text-gray-500 shrink-0">
+                        {new Date(item.deadline).toLocaleDateString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <Link to="/marketplace" className="btn-primary inline-flex items-center gap-2">
+              {t('dashboard.browseRequests', 'Browse buyer requests')}
+            </Link>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
