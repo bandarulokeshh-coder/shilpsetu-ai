@@ -65,10 +65,12 @@ export default function Navbar() {
                     {t('nav.aiStudio')}
                   </Link>
                 )}
-                <Link to="/buyer/request" className="text-gray-700 hover:text-primary-600 font-medium flex items-center gap-1">
-                  <UserPlus className="h-4 w-4" />
-                  {t('nav.buyerRequest')}
-                </Link>
+                {user?.role === 'BUYER' && (
+                  <Link to="/buyer/request" className="text-gray-700 hover:text-primary-600 font-medium flex items-center gap-1">
+                    <UserPlus className="h-4 w-4" />
+                    {t('nav.buyerRequest')}
+                  </Link>
+                )}
                 <Link to="/enquiries" className="text-gray-700 hover:text-primary-600 font-medium">
                   {t('nav.enquiries')}
                 </Link>
@@ -166,14 +168,16 @@ export default function Navbar() {
                     {t('nav.aiStudio')}
                   </Link>
                 )}
-                <Link
-                  to="/buyer/request"
-                  className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <UserPlus className="h-4 w-4 inline mr-2" />
-                  {t('nav.buyerRequest')}
-                </Link>
+                {user?.role === 'BUYER' && (
+                  <Link
+                    to="/buyer/request"
+                    className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <UserPlus className="h-4 w-4 inline mr-2" />
+                    {t('nav.buyerRequest')}
+                  </Link>
+                )}
                 <Link
                   to="/enquiries"
                   className="block px-4 py-2 text-gray-700 hover:bg-gray-100 rounded"
